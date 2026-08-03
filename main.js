@@ -4,40 +4,23 @@ const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
 let isRendering = false;
 
-// ============== 兼容性获取场景 ==============
+// ============== 修正：直接返回 OBR.scene ==============
 async function getScene() {
-    if (typeof OBR.scene.getScene === 'function') {
-        return await OBR.scene.getScene();
-    }
-    if (typeof OBR.scene.get === 'function') {
-        return await OBR.scene.get();
-    }
-    if (OBR.scene && typeof OBR.scene === 'object' && OBR.scene.id) {
-        return OBR.scene;
-    }
-    return null;
+    // 当前 SDK 版本中，OBR.scene 本身就是场景对象
+    return OBR.scene;
 }
 
 // ============== 等待场景就绪 ==============
 async function waitForScene(maxAttempts = 30, interval = 1000) {
     for (let i = 0; i < maxAttempts; i++) {
-        if (!OBR.isReady) {
-            console.log(`[MapRenderer] ⏳ SDK 未就绪 (${i+1}/${maxAttempts})`);
+        // 第一重：场景是否就绪（使用 OBR.scene.isReady）
+        if (!OBR.scene.isReady) {
+            console.log(`[MapRenderer] ⏳ 场景未就绪 (${i+1}/${maxAttempts})`);
             await new Promise(r => setTimeout(r, interval));
             continue;
         }
-        console.log('[MapRenderer] ✅ SDK 已就绪');
-        try {
-            const scene = await getScene();
-            if (scene) {
-                console.log('[MapRenderer] ✅ 场景已就绪:', scene.name || scene.id);
-                return scene;
-            }
-        } catch (e) {
-            console.warn(`[MapRenderer] ⚠️ getScene() 异常:`, e.message);
-        }
-        console.log(`[MapRenderer] ⏳ 场景为 null (${i+1}/${maxAttempts})`);
-        await new Promise(r => setTimeout(r, interval));
+        console.log('[MapRenderer] ✅ 场景已就绪');
+        return OBR.scene;
     }
     throw new Error('场景加载超时，请刷新页面或重新打开场景');
 }
@@ -67,30 +50,15 @@ async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
     try {
-        let sceneReady = false;
-        let attempts = 0;
-        while (!sceneReady && attempts < 15) {
-            try {
-                const scene = await getScene();
-                const viewport = await OBR.scene.getViewport();
-                if (scene && viewport) {
-                    sceneReady = true;
-                    console.log('[MapRenderer] 场景引擎已就绪');
-                } else {
-                    await new Promise(r => setTimeout(r, 500));
-                    attempts++;
-                }
-            } catch (e) {
-                await new Promise(r => setTimeout(r, 500));
-                attempts++;
-            }
-        }
-        if (!sceneReady) {
-            console.warn('[MapRenderer] 场景引擎未就绪，放弃本次渲染');
+        // 直接使用 OBR.scene，不需要 getScene()
+        if (!OBR.scene.isReady) {
+            console.warn('[MapRenderer] 场景未就绪，放弃本次渲染');
             isRendering = false;
             return;
         }
+        console.log('[MapRenderer] 场景引擎已就绪');
 
+        // 清除旧标记
         const items = await OBR.scene.items.getItems();
         const tokenItems = items.filter(item => item.metadata && item.metadata._fromExtension === true);
         for (const item of tokenItems) {
@@ -144,23 +112,14 @@ async function renderMap(mapData) {
     }
 }
 
-// ============== 主入口（含调试） ==============
+// ============== 主入口 ==============
 OBR.onReady(async () => {
     console.log("[MapRenderer] 🚀 Owlbear Rodeo 扩展已加载");
-
-    // ========== 🔍 调试代码（开始） ==========
-    console.log('[MapRenderer] 🔍 调试: OBR.scene 的全部属性:', Object.getOwnPropertyNames(OBR.scene));
-    console.log('[MapRenderer] 🔍 调试: OBR.scene 的原型方法:', Object.getOwnPropertyNames(Object.getPrototypeOf(OBR.scene)));
-    console.log('[MapRenderer] 🔍 调试: OBR.scene 是否包含 getScene?', typeof OBR.scene.getScene);
-    console.log('[MapRenderer] 🔍 调试: OBR.scene 是否包含 get?', typeof OBR.scene.get);
-    console.log('[MapRenderer] 🔍 调试: OBR.scene 是否包含 current?', typeof OBR.scene.current);
-    console.log('[MapRenderer] 🔍 调试: OBR.scene 自身的值:', OBR.scene);
-    // ========== 🔍 调试代码（结束） ==========
-
     console.log("[MapRenderer] 🌐 目标服务器:", SERVER_URL);
 
     try {
-        const scene = await waitForScene(30, 1000);
+        // 等待场景就绪（使用 OBR.scene.isReady）
+        await waitForScene(30, 1000);
         console.log("[MapRenderer] ✅ 场景已就绪，开始轮询（间隔5秒）");
         await fetchMap();
         setInterval(fetchMap, 5000);

@@ -1,6 +1,6 @@
 {
   "name": "Map Renderer v2",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "manifest_version": 1,
   "action": {
     "title": "地图渲染器",
@@ -9,5 +9,5 @@
     "height": 400,
     "width": 300
   },
-  "description": "接收来自 SillyTavern 的地图数据并在 Owlbear Rodeo 中渲染",
+  "description": "接收来自 SillyTavern 的地图数据并在 Owlbear Rodeo 中渲染"
 }

@@ -1,26 +1,28 @@
 import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 
-const WS_URL = "ws://127.0.0.1:8080";
-let latestData = null;
+const SERVER_URL = "http://localhost:8080";
+let lastData = null;
 
-async function fetchMapUpdate() {
+async function fetchMap() {
     try {
-        const response = await fetch(SERVER_URL + '/get-map');
-        if (response.ok) {
-            const data = await response.json();
-            if (data && data.background && JSON.stringify(data) !== JSON.stringify(latestData)) {
-                latestData = data;
-                console.log("[MapRenderer] 收到地图更新:", data);
+        const res = await fetch(SERVER_URL + '/get-map');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (JSON.stringify(data) !== JSON.stringify(lastData)) {
+            lastData = data;
+            if (data && data.background) {
+                console.log('[MapRenderer] 收到地图更新:', data);
                 await renderMap(data);
             }
         }
-    } catch (error) {
-        // 服务器未启动，静默忽略
+    } catch (e) {
+        // 静默失败
     }
 }
 
 async function renderMap(mapData) {
     try {
+        // 清除旧标记
         const items = await OBR.scene.items.getItems();
         const tokenItems = items.filter(item => 
             item.layer === "CHARACTER" || item.layer === "ATTACHMENT"
@@ -73,5 +75,5 @@ async function renderMap(mapData) {
 
 OBR.onReady(() => {
     console.log("[MapRenderer] Owlbear Rodeo 扩展已加载");
-    setInterval(fetchMapUpdate, 2000);
+    setInterval(fetchMap, 2000); // 每2秒轮询一次
 });

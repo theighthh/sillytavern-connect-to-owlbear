@@ -10,5 +10,4 @@
     "width": 300
   },
   "description": "接收来自 SillyTavern 的地图数据并在 Owlbear Rodeo 中渲染",
-  "js": "main.js"
 }

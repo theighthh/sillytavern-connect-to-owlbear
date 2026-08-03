@@ -1,6 +1,6 @@
 import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 
-const SERVER_URL = "http://localhost:8080";
+const WS_URL = "ws://127.0.0.1:8080";
 let latestData = null;
 
 async function fetchMapUpdate() {

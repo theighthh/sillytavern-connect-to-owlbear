@@ -1,10 +1,10 @@
 {
   "name": "Map Renderer v2",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "manifest_version": 1,
   "action": {
     "title": "地图渲染器",
-    "icon": "icon.svg",
+    "icon": "https://theighthh.github.io/sillytavern-connect-to-owlbear/icon.svg",
     "popover": "/",
     "height": 400,
     "width": 300

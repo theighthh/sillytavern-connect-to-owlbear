@@ -1,4 +1,4 @@
-import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@0.9.1/dist/index.mjs";
+import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 
 // WebSocket 服务器地址（根据实际修改）
 const WS_URL = "ws://localhost:8080";

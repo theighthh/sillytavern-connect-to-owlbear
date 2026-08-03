@@ -2,8 +2,10 @@ import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 
 const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
+let isRendering = false;
 
 async function fetchMap() {
+    if (isRendering) return;
     try {
         const res = await fetch(SERVER_URL + '/get-map');
         if (!res.ok) return;
@@ -16,12 +18,40 @@ async function fetchMap() {
             }
         }
     } catch (e) {
-        // 静默失败
+        console.error('[MapRenderer] fetch 错误:', e);
     }
 }
 
 async function renderMap(mapData) {
+    if (isRendering) return;
+    isRendering = true;
     try {
+        // 🔥 检查场景引擎是否就绪
+        let sceneReady = false;
+        let attempts = 0;
+        while (!sceneReady && attempts < 15) {
+            try {
+                const scene = await OBR.scene.getScene();
+                const viewport = await OBR.scene.getViewport();
+                if (scene && viewport) {
+                    sceneReady = true;
+                    console.log('[MapRenderer] 场景引擎已就绪');
+                } else {
+                    await new Promise(r => setTimeout(r, 500));
+                    attempts++;
+                }
+            } catch (e) {
+                await new Promise(r => setTimeout(r, 500));
+                attempts++;
+            }
+        }
+
+        if (!sceneReady) {
+            console.warn('[MapRenderer] 场景引擎未就绪，放弃本次渲染');
+            isRendering = false;
+            return;
+        }
+
         // 清除旧标记
         const items = await OBR.scene.items.getItems();
         const tokenItems = items.filter(item => 
@@ -39,7 +69,7 @@ async function renderMap(mapData) {
                 else if (token.type === "npc") color = "#F1C40F";
 
                 const tokenItem = {
-                    id: crypto.randomUUID(),
+                    id: Math.random().toString(36).substr(2, 9),
                     type: "SHAPE",
                     layer: "CHARACTER",
                     visible: true,
@@ -70,10 +100,30 @@ async function renderMap(mapData) {
         }
     } catch (error) {
         console.error("[MapRenderer] 渲染失败:", error);
+        console.error("[MapRenderer] 错误详情:", error.message);
+    } finally {
+        isRendering = false;
     }
 }
 
-OBR.onReady(() => {
+OBR.onReady(async () => {
     console.log("[MapRenderer] Owlbear Rodeo 扩展已加载");
-    setInterval(fetchMap, 2000); // 每2秒轮询一次
+    
+    // 等待场景加载完成
+    let sceneReady = false;
+    while (!sceneReady) {
+        try {
+            const scene = await OBR.scene.getScene();
+            const viewport = await OBR.scene.getViewport();
+            if (scene && viewport) {
+                sceneReady = true;
+                console.log("[MapRenderer] 场景已就绪，开始轮询");
+                setInterval(fetchMap, 2000);
+            } else {
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        } catch (e) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
 });

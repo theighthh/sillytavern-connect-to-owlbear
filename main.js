@@ -4,51 +4,53 @@ const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
 let isRendering = false;
 
-// ============== 新增：双重校验等待场景就绪 ==============
+// ============== 兼容性获取场景 ==============
+async function getScene() {
+    if (typeof OBR.scene.getScene === 'function') {
+        return await OBR.scene.getScene();
+    }
+    if (typeof OBR.scene.get === 'function') {
+        return await OBR.scene.get();
+    }
+    if (OBR.scene && typeof OBR.scene === 'object' && OBR.scene.id) {
+        return OBR.scene;
+    }
+    return null;
+}
+
+// ============== 等待场景就绪 ==============
 async function waitForScene(maxAttempts = 30, interval = 1000) {
     for (let i = 0; i < maxAttempts; i++) {
-        // 第一重：SDK 是否就绪
         if (!OBR.isReady) {
-            console.log(`[MapRenderer] ⏳ SDK 未就绪 (${i + 1}/${maxAttempts})`);
+            console.log(`[MapRenderer] ⏳ SDK 未就绪 (${i+1}/${maxAttempts})`);
             await new Promise(r => setTimeout(r, interval));
             continue;
         }
         console.log('[MapRenderer] ✅ SDK 已就绪');
-
-        // 第二重：场景是否存在
         try {
-            const scene = await OBR.scene.getScene();
+            const scene = await getScene();
             if (scene) {
                 console.log('[MapRenderer] ✅ 场景已就绪:', scene.name || scene.id);
                 return scene;
-            } else {
-                console.log(`[MapRenderer] ⏳ 场景为 null (${i + 1}/${maxAttempts})`);
             }
         } catch (e) {
             console.warn(`[MapRenderer] ⚠️ getScene() 异常:`, e.message);
         }
-
+        console.log(`[MapRenderer] ⏳ 场景为 null (${i+1}/${maxAttempts})`);
         await new Promise(r => setTimeout(r, interval));
     }
     throw new Error('场景加载超时，请刷新页面或重新打开场景');
 }
 
-// ============== 原有 fetchMap（未改动） ==============
+// ============== fetchMap ==============
 async function fetchMap() {
     if (isRendering) return;
     try {
         const res = await fetch(SERVER_URL + '/get-map');
         if (!res.ok) return;
         const data = await res.json();
-
-        if (Object.keys(data).length === 0) {
-            return;
-        }
-
-        if (JSON.stringify(data) === JSON.stringify(lastData)) {
-            return;
-        }
-
+        if (Object.keys(data).length === 0) return;
+        if (JSON.stringify(data) === JSON.stringify(lastData)) return;
         lastData = data;
         if (data && data.background) {
             console.log('[MapRenderer] 收到地图更新:', data);
@@ -60,17 +62,16 @@ async function fetchMap() {
     }
 }
 
-// ============== 原有 renderMap（未改动） ==============
+// ============== renderMap ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
     try {
-        // 检查场景引擎是否就绪
         let sceneReady = false;
         let attempts = 0;
         while (!sceneReady && attempts < 15) {
             try {
-                const scene = await OBR.scene.getScene();
+                const scene = await getScene();
                 const viewport = await OBR.scene.getViewport();
                 if (scene && viewport) {
                     sceneReady = true;
@@ -84,18 +85,14 @@ async function renderMap(mapData) {
                 attempts++;
             }
         }
-
         if (!sceneReady) {
             console.warn('[MapRenderer] 场景引擎未就绪，放弃本次渲染');
             isRendering = false;
             return;
         }
 
-        // 清除旧标记（只清除扩展创建的）
         const items = await OBR.scene.items.getItems();
-        const tokenItems = items.filter(item => 
-            item.metadata && item.metadata._fromExtension === true
-        );
+        const tokenItems = items.filter(item => item.metadata && item.metadata._fromExtension === true);
         for (const item of tokenItems) {
             await OBR.scene.items.deleteItems([item.id]);
         }
@@ -138,8 +135,6 @@ async function renderMap(mapData) {
             }
             console.log(`[MapRenderer] 已放置 ${mapData.tokens.length} 个标记`);
             console.log('[MapRenderer] ✅ 标记已全部放置完成！');
-        } else {
-            console.warn('[MapRenderer] 没有 tokens 数据');
         }
     } catch (error) {
         console.error("[MapRenderer] 渲染失败:", error);
@@ -149,22 +144,31 @@ async function renderMap(mapData) {
     }
 }
 
-// ============== 修改后的 OBR.onReady ==============
+// ============== 主入口（含调试） ==============
 OBR.onReady(async () => {
     console.log("[MapRenderer] 🚀 Owlbear Rodeo 扩展已加载");
+
+    // ========== 🔍 调试代码（开始） ==========
+    console.log('[MapRenderer] 🔍 调试: OBR.scene 的全部属性:', Object.getOwnPropertyNames(OBR.scene));
+    console.log('[MapRenderer] 🔍 调试: OBR.scene 的原型方法:', Object.getOwnPropertyNames(Object.getPrototypeOf(OBR.scene)));
+    console.log('[MapRenderer] 🔍 调试: OBR.scene 是否包含 getScene?', typeof OBR.scene.getScene);
+    console.log('[MapRenderer] 🔍 调试: OBR.scene 是否包含 get?', typeof OBR.scene.get);
+    console.log('[MapRenderer] 🔍 调试: OBR.scene 是否包含 current?', typeof OBR.scene.current);
+    console.log('[MapRenderer] 🔍 调试: OBR.scene 自身的值:', OBR.scene);
+    // ========== 🔍 调试代码（结束） ==========
+
     console.log("[MapRenderer] 🌐 目标服务器:", SERVER_URL);
 
     try {
-        // 🔥 使用双重校验等待场景就绪
         const scene = await waitForScene(30, 1000);
         console.log("[MapRenderer] ✅ 场景已就绪，开始轮询（间隔5秒）");
-        await fetchMap(); // 立即执行一次
+        await fetchMap();
         setInterval(fetchMap, 5000);
     } catch (error) {
         console.error("[MapRenderer] ❌", error.message);
         console.warn("[MapRenderer] 💡 请尝试：");
-        console.warn("[MapRenderer]    1. 在 Owlbear 中关闭并重新打开场景");
-        console.warn("[MapRenderer]    2. 刷新浏览器页面（Ctrl+F5）");
+        console.warn("[MapRenderer]    1. 刷新浏览器页面（Ctrl+F5）");
+        console.warn("[MapRenderer]    2. 在 Owlbear 中关闭并重新打开场景");
         console.warn("[MapRenderer]    3. 重新安装扩展");
     }
 });

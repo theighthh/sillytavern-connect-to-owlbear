@@ -43,7 +43,7 @@ async function fetchMap() {
     }
 }
 
-// ============== renderMap（使用 CURVE 类型） ==============
+// ============== renderMap（最终正确格式） ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
@@ -65,31 +65,36 @@ async function renderMap(mapData) {
 
         if (mapData.tokens && mapData.tokens.length > 0) {
             for (const token of mapData.tokens) {
-                // 根据类型选择颜色
+                // 根据类型选择填充色
                 let fillColor = "#4A90D9"; // 默认蓝色
                 if (token.type === "player") fillColor = "#2ECC71";
                 else if (token.type === "enemy") fillColor = "#E74C3C";
                 else if (token.type === "npc") fillColor = "#F1C40F";
 
-                // 🔥 手动构造 tokenItem，使用 SDK 允许的 CURVE 类型
+                // 🔥 最终正确格式
                 const tokenItem = {
-                    id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
-                    type: "CURVE",                    // 关键改动：从 SHAPE 改为 CURVE
+                    id: Math.random().toString(36).substr(2, 9),
+                    type: "SHAPE",
                     layer: "CHARACTER",
                     visible: true,
+                    shapeType: "CIRCLE",
+                    width: 40,
+                    height: 40,
                     position: {
                         x: token.x * 50,
                         y: token.y * 50
                     },
-                    width: 40,
-                    height: 40,
                     rotation: 0,
+                    scale: { x: 1, y: 1 },
                     style: {
                         fillColor: fillColor,
-                        strokeColor: "#000000",
-                        strokeWidth: 2,
-                        fillOpacity: 1               // 必填字段
+                        fillOpacity: 1,
+                        strokeColor: "#FFFFFF",
+                        strokeOpacity: 1,
+                        strokeWidth: 3,
+                        strokeDash: []
                     },
+                    createdUserId: "extension",
                     metadata: {
                         name: token.name,
                         type: token.type,
@@ -97,7 +102,6 @@ async function renderMap(mapData) {
                     }
                 };
 
-                // 添加到场景
                 await OBR.scene.items.addItems([tokenItem]);
             }
             console.log(`[MapRenderer] 已放置 ${mapData.tokens.length} 个标记`);
@@ -122,14 +126,19 @@ OBR.onReady(async () => {
     console.log("[MapRenderer] 🚀 Owlbear Rodeo 扩展已加载");
     console.log("[MapRenderer] 🌐 目标服务器:", SERVER_URL);
 
-    // 🔥 暴露 OBR 到全局，方便控制台调试
-    window.__OBR = OBR;
-    console.log('[MapRenderer] 🔧 已将 OBR 暴露到 window.__OBR，可在控制台调试');
+    // 暴露 OBR 到主页面 window（方便调试）
+    if (window.top) {
+        window.top.__OBR = OBR;
+        console.log('[MapRenderer] 🔧 已将 OBR 暴露到主页面 window.__OBR');
+    } else {
+        window.__OBR = OBR;
+        console.log('[MapRenderer] 🔧 已将 OBR 暴露到当前 window.__OBR');
+    }
 
     try {
         await waitForScene(30, 1000);
         console.log("[MapRenderer] ✅ 场景已就绪，开始轮询（间隔5秒）");
-        await fetchMap(); // 立即执行一次
+        await fetchMap();
         setInterval(fetchMap, 5000);
     } catch (error) {
         console.error("[MapRenderer] ❌", error.message);

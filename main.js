@@ -1,4 +1,4 @@
-import OBR, { buildShape } from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
+import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 
 const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
@@ -43,7 +43,7 @@ async function fetchMap() {
     }
 }
 
-// ============== renderMap（使用 buildShape） ==============
+// ============== renderMap（使用 CURVE 类型） ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
@@ -71,23 +71,31 @@ async function renderMap(mapData) {
                 else if (token.type === "enemy") fillColor = "#E74C3C";
                 else if (token.type === "npc") fillColor = "#F1C40F";
 
-                // 🔥 使用官方 Builder 构造标记对象（格式完全合规）
-                const tokenItem = buildShape()
-                    .shapeType("CIRCLE")
-                    .width(40)
-                    .height(40)
-                    .position({ x: token.x * 50, y: token.y * 50 })
-                    .style({
+                // 🔥 手动构造 tokenItem，使用 SDK 允许的 CURVE 类型
+                const tokenItem = {
+                    id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 9),
+                    type: "CURVE",                    // 关键改动：从 SHAPE 改为 CURVE
+                    layer: "CHARACTER",
+                    visible: true,
+                    position: {
+                        x: token.x * 50,
+                        y: token.y * 50
+                    },
+                    width: 40,
+                    height: 40,
+                    rotation: 0,
+                    style: {
                         fillColor: fillColor,
                         strokeColor: "#000000",
                         strokeWidth: 2,
-                    })
-                    .metadata({
+                        fillOpacity: 1               // 必填字段
+                    },
+                    metadata: {
                         name: token.name,
                         type: token.type,
                         _fromExtension: true
-                    })
-                    .build();
+                    }
+                };
 
                 // 添加到场景
                 await OBR.scene.items.addItems([tokenItem]);
@@ -113,6 +121,10 @@ async function renderMap(mapData) {
 OBR.onReady(async () => {
     console.log("[MapRenderer] 🚀 Owlbear Rodeo 扩展已加载");
     console.log("[MapRenderer] 🌐 目标服务器:", SERVER_URL);
+
+    // 🔥 暴露 OBR 到全局，方便控制台调试
+    window.__OBR = OBR;
+    console.log('[MapRenderer] 🔧 已将 OBR 暴露到 window.__OBR，可在控制台调试');
 
     try {
         await waitForScene(30, 1000);

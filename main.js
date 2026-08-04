@@ -43,12 +43,11 @@ async function fetchMap() {
     }
 }
 
-// ============== renderMap（最终正确格式） ==============
+// ============== renderMap（使用 SHAPE + CIRCLE） ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
     try {
-        // 检查场景就绪
         if (!OBR.scene.isReady) {
             console.warn('[MapRenderer] 场景未就绪，放弃本次渲染');
             isRendering = false;
@@ -56,7 +55,6 @@ async function renderMap(mapData) {
         }
         console.log('[MapRenderer] 场景引擎已就绪');
 
-        // 清除旧标记（只清除扩展创建的）
         const items = await OBR.scene.items.getItems();
         const tokenItems = items.filter(item => item.metadata && item.metadata._fromExtension === true);
         for (const item of tokenItems) {
@@ -65,13 +63,11 @@ async function renderMap(mapData) {
 
         if (mapData.tokens && mapData.tokens.length > 0) {
             for (const token of mapData.tokens) {
-                // 根据类型选择填充色
-                let fillColor = "#4A90D9"; // 默认蓝色
+                let fillColor = "#4A90D9";
                 if (token.type === "player") fillColor = "#2ECC71";
                 else if (token.type === "enemy") fillColor = "#E74C3C";
                 else if (token.type === "npc") fillColor = "#F1C40F";
 
-                // 🔥 最终正确格式
                 const tokenItem = {
                     id: Math.random().toString(36).substr(2, 9),
                     type: "SHAPE",
@@ -106,8 +102,6 @@ async function renderMap(mapData) {
             }
             console.log(`[MapRenderer] 已放置 ${mapData.tokens.length} 个标记`);
             console.log('[MapRenderer] ✅ 标记已全部放置完成！');
-        } else {
-            console.warn('[MapRenderer] 没有 tokens 数据');
         }
     } catch (error) {
         console.error("[MapRenderer] 渲染失败:", error);
@@ -126,14 +120,9 @@ OBR.onReady(async () => {
     console.log("[MapRenderer] 🚀 Owlbear Rodeo 扩展已加载");
     console.log("[MapRenderer] 🌐 目标服务器:", SERVER_URL);
 
-    // 暴露 OBR 到主页面 window（方便调试）
-    if (window.top) {
-        window.top.__OBR = OBR;
-        console.log('[MapRenderer] 🔧 已将 OBR 暴露到主页面 window.__OBR');
-    } else {
-        window.__OBR = OBR;
-        console.log('[MapRenderer] 🔧 已将 OBR 暴露到当前 window.__OBR');
-    }
+    // 暴露 OBR 到当前 window（仅用于调试，不跨域）
+    window.__OBR = OBR;
+    console.log('[MapRenderer] 🔧 已将 OBR 暴露到当前 window.__OBR');
 
     try {
         await waitForScene(30, 1000);

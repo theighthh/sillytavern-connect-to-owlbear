@@ -129,32 +129,67 @@ async function renderMap(mapData) {
                 let tokenItem;
                 const imageUrl = TOKEN_IMAGES[token.name] || TOKEN_IMAGES["default"];
 
-                // 如果有匹配的图片，使用 IMAGE 类型
+                // 如果有匹配的图片，使用 IMAGE 类型（完全复制成功格式）
                 if (imageUrl) {
                     tokenItem = {
-                        id: Math.random().toString(36).substr(2, 9),
                         type: "IMAGE",
-                        layer: "CHARACTER",
-                        visible: true,
+                        id: Math.random().toString(36).substr(2, 9),
+                        name: token.name || "Token",
                         position: {
                             x: token.x * 50,
                             y: token.y * 50
                         },
-                        width: 50,
-                        height: 50,
                         rotation: 0,
                         scale: { x: 1, y: 1 },
-                        image: {
-                            url: imageUrl,
-                            width: 50,
-                            height: 50,
-                            mime: "image/png"
-                        },
+                        visible: true,
+                        locked: false,
+                        createdUserId: "c1876eaa-3709-40e7-824f-4a6f6b28f37d",
+                        zIndex: Date.now(),
+                        lastModified: new Date().toISOString(),
+                        lastModifiedUserId: "c1876eaa-3709-40e7-824f-4a6f6b28f37d",
                         metadata: {
                             name: token.name,
                             type: token.type,
                             _fromExtension: true
-                        }
+                        },
+                        image: {
+                            url: imageUrl,
+                            mime: "image/png",
+                            width: 300,
+                            height: 300
+                        },
+                        grid: {
+                            dpi: 300,
+                            offset: { x: 150, y: 150 }
+                        },
+                        text: {
+                            type: "PLAIN",
+                            style: {
+                                padding: 8,
+                                fontSize: 24,
+                                fillColor: "white",
+                                textAlign: "CENTER",
+                                fontFamily: "Roboto",
+                                fontWeight: 400,
+                                lineHeight: 1.5,
+                                fillOpacity: 1,
+                                strokeColor: "white",
+                                strokeWidth: 0,
+                                strokeOpacity: 1,
+                                textAlignVertical: "BOTTOM"
+                            },
+                            width: "AUTO",
+                            height: "AUTO",
+                            richText: [
+                                {
+                                    type: "paragraph",
+                                    children: [{ text: "" }]
+                                }
+                            ],
+                            plainText: ""
+                        },
+                        textItemType: "LABEL",
+                        layer: "CHARACTER"
                     };
                 } else {
                     // 回退到彩色圆形（兼容旧数据）

@@ -4,6 +4,11 @@ const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
 let isRendering = false;
 
+// ========== 网格对齐配置（0.2.0） ==========
+const GRID_ORIGIN_X = 75;
+const GRID_ORIGIN_Y = 225;
+const GRID_SIZE = 150;
+
 // ========== 角色名 → 图片 URL 映射表（0.2.0） ==========
 const TOKEN_IMAGES = {
     // ===== 职业类（玩家角色） =====
@@ -105,7 +110,7 @@ async function fetchMap() {
     }
 }
 
-// ============== renderMap（支持图片 + 彩色圆形回退） ==============
+// ============== renderMap（支持图片 + 网格中心对齐） ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
@@ -129,16 +134,17 @@ async function renderMap(mapData) {
                 let tokenItem;
                 const imageUrl = TOKEN_IMAGES[token.name] || TOKEN_IMAGES["default"];
 
-                // 如果有匹配的图片，使用 IMAGE 类型（完全复制成功格式）
+                // 网格索引 → 像素坐标（对齐网格中心）
+                const posX = GRID_ORIGIN_X + Math.round(parseFloat(token.x)) * GRID_SIZE;
+                const posY = GRID_ORIGIN_Y + Math.round(parseFloat(token.y)) * GRID_SIZE;
+
+                // 如果有匹配的图片，使用 IMAGE 类型
                 if (imageUrl) {
                     tokenItem = {
                         type: "IMAGE",
                         id: Math.random().toString(36).substr(2, 9),
                         name: token.name || "Token",
-                        position: {
-                            x: token.x * 50,
-                            y: token.y * 50
-                        },
+                        position: { x: posX, y: posY },
                         rotation: 0,
                         scale: { x: 1, y: 1 },
                         visible: true,
@@ -206,10 +212,7 @@ async function renderMap(mapData) {
                         shapeType: "CIRCLE",
                         width: 40,
                         height: 40,
-                        position: {
-                            x: token.x * 50,
-                            y: token.y * 50
-                        },
+                        position: { x: posX, y: posY },
                         rotation: 0,
                         scale: { x: 1, y: 1 },
                         style: {

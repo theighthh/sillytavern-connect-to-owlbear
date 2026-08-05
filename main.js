@@ -4,6 +4,68 @@ const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
 let isRendering = false;
 
+// ========== 角色名 → 图片 URL 映射表（0.2.0） ==========
+const TOKEN_IMAGES = {
+    // ===== 职业类（玩家角色） =====
+    "Barbarian": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Barbarian.png",
+    "Bard": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Bard.png",
+    "Cleric": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Cleric.png",
+    "Druid": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Druid.png",
+    "Fighter": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Fighter.png",
+    "Monk": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Monk.png",
+    "Paladin": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Paladin.png",
+    "Ranger": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Ranger.png",
+    "Rogue": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Rogue.png",
+    "Sorcerer": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Sorcerer.png",
+    "Warlock": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Warlock.png",
+    "Wizard": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Wizard.png",
+    "Artificer": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Artificer.png",
+    "Blood Hunter": "https://images.owlbear.rodeo/shared/items/owlbear-characters/BloodHunter.png",
+
+    // ===== 怪物类型（敌人/NPC） =====
+    "Aberration": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Aberration.png",
+    "Beast": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Beast.png",
+    "Celestial": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Celestial.png",
+    "Construct": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Construct.png",
+    "Dragon": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Dragon.png",
+    "Elemental": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Elemental.png",
+    "Fey": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Fey.png",
+    "Fiend": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Fiend.png",
+    "Giant": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Giant.png",
+    "Goblin": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Goblin.png",
+    "Humanoid": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Humanoid.png",
+    "Monstrosity": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Monstrosity.png",
+    "Ooze": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Ooze.png",
+    "Plant": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Plant.png",
+    "Shapechanger": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Shapechanger.png",
+    "Titan": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Titan.png",
+    "Undead": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Undead.png",
+
+    // ===== 中文别名（方便 AI 直接使用中文名） =====
+    "野蛮人": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Barbarian.png",
+    "吟游诗人": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Bard.png",
+    "牧师": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Cleric.png",
+    "德鲁伊": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Druid.png",
+    "战士": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Fighter.png",
+    "武僧": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Monk.png",
+    "圣骑士": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Paladin.png",
+    "游侠": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Ranger.png",
+    "游荡者": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Rogue.png",
+    "术士": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Sorcerer.png",
+    "邪术师": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Warlock.png",
+    "法师": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Wizard.png",
+    "奇械师": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Artificer.png",
+
+    "地精": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Goblin.png",
+    "巨龙": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Dragon.png",
+    "巨人": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Giant.png",
+    "不死生物": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Undead.png",
+    "元素生物": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Elemental.png",
+
+    // ===== 默认兜底图片 =====
+    "default": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Humanoid.png"
+};
+
 // ============== 直接返回 OBR.scene ==============
 async function getScene() {
     return OBR.scene;
@@ -43,7 +105,7 @@ async function fetchMap() {
     }
 }
 
-// ============== renderMap（使用 SHAPE + CIRCLE） ==============
+// ============== renderMap（支持图片 + 彩色圆形回退） ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
@@ -55,6 +117,7 @@ async function renderMap(mapData) {
         }
         console.log('[MapRenderer] 场景引擎已就绪');
 
+        // 清除旧标记
         const items = await OBR.scene.items.getItems();
         const tokenItems = items.filter(item => item.metadata && item.metadata._fromExtension === true);
         for (const item of tokenItems) {
@@ -63,40 +126,73 @@ async function renderMap(mapData) {
 
         if (mapData.tokens && mapData.tokens.length > 0) {
             for (const token of mapData.tokens) {
-                let fillColor = "#4A90D9";
-                if (token.type === "player") fillColor = "#2ECC71";
-                else if (token.type === "enemy") fillColor = "#E74C3C";
-                else if (token.type === "npc") fillColor = "#F1C40F";
+                let tokenItem;
+                const imageUrl = TOKEN_IMAGES[token.name] || TOKEN_IMAGES["default"];
 
-                const tokenItem = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    type: "SHAPE",
-                    layer: "CHARACTER",
-                    visible: true,
-                    shapeType: "CIRCLE",
-                    width: 40,
-                    height: 40,
-                    position: {
-                        x: token.x * 50,
-                        y: token.y * 50
-                    },
-                    rotation: 0,
-                    scale: { x: 1, y: 1 },
-                    style: {
-                        fillColor: fillColor,
-                        fillOpacity: 1,
-                        strokeColor: "#FFFFFF",
-                        strokeOpacity: 1,
-                        strokeWidth: 3,
-                        strokeDash: []
-                    },
-                    createdUserId: "extension",
-                    metadata: {
-                        name: token.name,
-                        type: token.type,
-                        _fromExtension: true
-                    }
-                };
+                // 如果有匹配的图片，使用 IMAGE 类型
+                if (imageUrl) {
+                    tokenItem = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        type: "IMAGE",
+                        layer: "CHARACTER",
+                        visible: true,
+                        position: {
+                            x: token.x * 50,
+                            y: token.y * 50
+                        },
+                        width: 50,
+                        height: 50,
+                        rotation: 0,
+                        scale: { x: 1, y: 1 },
+                        image: {
+                            url: imageUrl,
+                            width: 50,
+                            height: 50,
+                            mime: "image/png"
+                        },
+                        metadata: {
+                            name: token.name,
+                            type: token.type,
+                            _fromExtension: true
+                        }
+                    };
+                } else {
+                    // 回退到彩色圆形（兼容旧数据）
+                    let fillColor = "#4A90D9";
+                    if (token.type === "player") fillColor = "#2ECC71";
+                    else if (token.type === "enemy") fillColor = "#E74C3C";
+                    else if (token.type === "npc") fillColor = "#F1C40F";
+
+                    tokenItem = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        type: "SHAPE",
+                        layer: "CHARACTER",
+                        visible: true,
+                        shapeType: "CIRCLE",
+                        width: 40,
+                        height: 40,
+                        position: {
+                            x: token.x * 50,
+                            y: token.y * 50
+                        },
+                        rotation: 0,
+                        scale: { x: 1, y: 1 },
+                        style: {
+                            fillColor: fillColor,
+                            fillOpacity: 1,
+                            strokeColor: "#FFFFFF",
+                            strokeOpacity: 1,
+                            strokeWidth: 3,
+                            strokeDash: []
+                        },
+                        createdUserId: "extension",
+                        metadata: {
+                            name: token.name,
+                            type: token.type,
+                            _fromExtension: true
+                        }
+                    };
+                }
 
                 await OBR.scene.items.addItems([tokenItem]);
             }
@@ -120,7 +216,6 @@ OBR.onReady(async () => {
     console.log("[MapRenderer] 🚀 Owlbear Rodeo 扩展已加载");
     console.log("[MapRenderer] 🌐 目标服务器:", SERVER_URL);
 
-    // 暴露 OBR 到当前 window（仅用于调试，不跨域）
     window.__OBR = OBR;
     console.log('[MapRenderer] 🔧 已将 OBR 暴露到当前 window.__OBR');
 

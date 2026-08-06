@@ -1,9 +1,9 @@
 {
   "name": "四角标定 (Corner Calibration)",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "manifest_version": 1.1,
   "action": {
-    "title": "四角标定 v0.2.2",
+    "title": "四角标定 v0.2.3",
     "icon": "https://theighthh.github.io/sillytavern-connect-to-owlbear/corner-calibration/icon.svg",
     "popover": "https://theighthh.github.io/sillytavern-connect-to-owlbear/corner-calibration/index.html",
     "height": 420,

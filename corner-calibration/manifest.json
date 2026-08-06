@@ -1,0 +1,14 @@
+json
+{
+  "name": "四角标定 (Corner Calibration)",
+  "version": "0.2.0",
+  "manifest_version": 1,
+  "action": {
+    "title": "四角标定 v0.2.0",
+    "icon": "icon.svg",
+    "popover": "index.html",
+    "height": 420,
+    "width": 360
+  },
+  "description": "四角标定地图 + AI 地形识别 (0.2.0)"
+}

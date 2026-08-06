@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地形分析器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+        .header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin: 0;
+        }
+        .header .badge {
+            font-size: 11px;
+            background: #2a2a4a;
+            padding: 2px 10px;
+            border-radius: 12px;
+            color: #888;
+        }
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #12121f;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .status-dot.ready { background: #4a9eff; }
+        .status-dot.active { background: #f5a623; animation: pulse 1s infinite; }
+        .status-dot.done { background: #2ecc71; }
+        .status-dot.error { background: #e74c3c; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 10px 0;
+            background: #4a9eff;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary:hover { background: #3a8aee; }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            width: 100%;
+            padding: 10px 0;
+            background: #2a2a4a;
+            color: #aaa;
+            border: 1px solid #3a3a5a;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-secondary:hover { background: #3a3a5a; }
+
+        .step-section {
+            background: #12121f;
+            border-radius: 6px;
+            padding: 12px;
+            min-height: 80px;
+        }
+        .step-section .step-title {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .step-section .step-message {
+            font-size: 15px;
+            color: #fff;
+            font-weight: 500;
+        }
+        .step-section .step-sub {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .progress-bar {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin: 4px 0;
+        }
+        .progress-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #2a2a4a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: #555;
+            transition: all 0.3s;
+        }
+        .progress-dot.active {
+            background: #f5a623;
+            color: #fff;
+            box-shadow: 0 0 12px rgba(245, 166, 35, 0.3);
+        }
+        .progress-dot.done {
+            background: #2ecc71;
+            color: #fff;
+        }
+
+        .info-box {
+            background: #0e0e1a;
+            border-left: 3px solid #4a9eff;
+            padding: 8px 12px;
+            border-radius: 0 4px 4px 0;
+            font-size: 12px;
+            color: #888;
+            line-height: 1.6;
+        }
+        .info-box code {
+            background: #1a1a30;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .result-box {
+            background: #0e1a0e;
+            border-left: 3px solid #2ecc71;
+            padding: 8px 12px;
+            border-radius: 0 4px 4px 0;
+            font-size: 12px;
+            color: #8a8;
+            display: none;
+        }
+        .result-box.show { display: block; }
+
+        .error-box {
+            background: #1a0e0e;
+            border-left: 3px solid #e74c3c;
+            padding: 8px 12px;
+            border-radius: 0 4px 4px 0;
+            font-size: 12px;
+            color: #a88;
+            display: none;
+        }
+        .error-box.show { display: block; }
+
+        .footer-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .footer-actions .btn-secondary {
+            flex: 1;
+            padding: 8px 0;
+            font-size: 12px;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <!-- 头部 -->
+        <div class="header">
+            <h2>🗺️ 地形分析器</h2>
+            <span class="badge">v0.2.0</span>
+        </div>
+
+        <!-- 状态 -->
+        <div class="status-row">
+            <span class="status-dot ready" id="statusDot"></span>
+            <span id="statusText">就绪</span>
+            <span style="margin-left:auto;font-size:12px;color:#666;" id="statusDetail"></span>
+        </div>
+
+        <!-- 主按钮 -->
+        <button class="btn-primary" id="btnStart">📍 开始标定地图</button>
+
+        <!-- 步骤提示 -->
+        <div class="step-section" id="stepSection">
+            <div class="step-title" id="stepTitle">等待操作</div>
+            <div class="step-message" id="stepMessage">点击上方按钮开始标定</div>
+            <div class="step-sub" id="stepSub"></div>
+        </div>
+
+        <!-- 进度条 -->
+        <div class="progress-bar" id="progressBar">
+            <span class="progress-dot" data-index="0">1</span>
+            <span class="progress-dot" data-index="1">2</span>
+            <span class="progress-dot" data-index="2">3</span>
+            <span class="progress-dot" data-index="3">4</span>
+        </div>
+
+        <!-- 结果 / 错误 -->
+        <div class="result-box" id="resultBox">
+            <strong>✅ 标定完成</strong><br>
+            <span id="resultDetail">地图已校准</span>
+        </div>
+        <div class="error-box" id="errorBox">
+            <strong>❌ 错误</strong><br>
+            <span id="errorDetail">请重试</span>
+        </div>
+
+        <!-- 使用说明 -->
+        <div class="info-box">
+            📌 <strong>使用说明</strong><br>
+            1. 从右侧素材库拖拽 <strong>Character</strong> 到地图<br>
+            2. 按照提示依次放置在 <strong>四个角</strong><br>
+            3. 放置完成后自动保存并清理
+        </div>
+
+        <!-- 底部操作 -->
+        <div class="footer-actions">
+            <button class="btn-secondary hidden" id="btnCancel">取消标定</button>
+            <button class="btn-secondary" id="btnReset">重置状态</button>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

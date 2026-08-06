@@ -1,5 +1,5 @@
-// 0.2.0/calibration.js
-// 四角标定核心逻辑（纯函数，无 UI 依赖）
+// corner-calibration/calibration.js
+// 四角标定核心逻辑（已修复 OBR 就绪问题）
 
 const CALIBRATION_KEY = 'mapCalibration';
 const CORNER_NAMES = ['左上角', '右上角', '右下角', '左下角'];
@@ -23,6 +23,50 @@ let callbacks = {
     onCancel: null,
 };
 
+let obrReady = false;
+
+// ======================= 辅助函数：等待 OBR 就绪 =======================
+
+async function waitForOBR() {
+    if (obrReady && typeof OBR !== 'undefined' && OBR.scene) {
+        return;
+    }
+
+    return new Promise((resolve) => {
+        // 如果 OBR 已经存在且场景可用
+        if (typeof OBR !== 'undefined' && OBR.scene) {
+            obrReady = true;
+            resolve();
+            return;
+        }
+
+        // 使用 OBR.onReady（官方推荐）
+        if (typeof OBR !== 'undefined' && OBR.onReady) {
+            OBR.onReady(() => {
+                obrReady = true;
+                resolve();
+            });
+        } else {
+            // 兜底：轮询检查
+            const interval = setInterval(() => {
+                if (typeof OBR !== 'undefined' && OBR.scene) {
+                    clearInterval(interval);
+                    obrReady = true;
+                    resolve();
+                }
+            }, 300);
+            // 超时保护（10 秒）
+            setTimeout(() => {
+                clearInterval(interval);
+                if (!obrReady) {
+                    console.warn('[Calibration] OBR 就绪超时，请刷新页面');
+                    resolve(); // 即使超时也继续，让后续错误处理
+                }
+            }, 10000);
+        }
+    });
+}
+
 // ======================= 公共 API =======================
 
 export function setCallbacks(cb) {
@@ -32,6 +76,19 @@ export function setCallbacks(cb) {
 export async function startCalibration() {
     if (state.isActive) {
         console.warn('[Calibration] 标定已在进行中');
+        return;
+    }
+
+    // 🔥 关键修复：等待 OBR 就绪
+    await waitForOBR();
+
+    // 再次检查 OBR 是否可用
+    if (typeof OBR === 'undefined' || !OBR.scene) {
+        const errMsg = 'OBR 未就绪，请刷新页面后重试';
+        console.error('[Calibration]', errMsg);
+        if (callbacks.onError) {
+            callbacks.onError(errMsg);
+        }
         return;
     }
 
@@ -97,6 +154,11 @@ export function getStatus() {
 
 export async function getCalibrationData() {
     try {
+        // 先等待 OBR 就绪
+        await waitForOBR();
+        if (typeof OBR === 'undefined' || !OBR.scene) {
+            return null;
+        }
         const metadata = await OBR.scene.getMetadata();
         return metadata[CALIBRATION_KEY] || null;
     } catch (e) {
@@ -170,6 +232,10 @@ async function checkForNewCorner() {
         }
     } catch (e) {
         console.error('[Calibration] 检测异常:', e);
+        // 如果出现异常，可以尝试继续，但记录错误
+        if (callbacks.onError) {
+            callbacks.onError('检测过程发生错误: ' + e.message);
+        }
     }
 }
 
@@ -277,9 +343,9 @@ export function resetCalibration() {
     console.log('[Calibration] 🔄 已重置');
 }
 
-// ======================= 调试 =======================
+// ======================= 调试工具 =======================
 
-// 暴露到全局方便调试
+// 暴露到全局方便调试（只在开发环境）
 if (typeof window !== 'undefined') {
     window.__calibration = {
         start: startCalibration,

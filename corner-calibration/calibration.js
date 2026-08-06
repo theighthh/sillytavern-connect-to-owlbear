@@ -1,5 +1,5 @@
 // corner-calibration/calibration.js
-// 四角标定核心逻辑 - 修复 initialCount 计数 Bug
+// 四角标定核心逻辑 - 修复 height 负数问题
 
 const CALIBRATION_KEY = 'mapCalibration';
 const CORNER_NAMES = ['左上角', '右上角', '右下角', '左下角'];
@@ -69,7 +69,6 @@ export async function startCalibration() {
     const existing = await getCalibrationData();
     if (existing) console.log('[Calibration] 已有标定数据，将覆盖');
 
-    // 🔥 修正：只统计 Character 的数量
     const allItems = await obr.scene.items.getItems();
     const initialChars = allItems.filter(item =>
         item.type === 'IMAGE' &&
@@ -143,7 +142,6 @@ async function checkForNewCorner(obr) {
 
     try {
         const items = await obr.scene.items.getItems();
-        // 筛选未标记的 Character
         const newItems = items.filter(item =>
             item.type === 'IMAGE' &&
             item.layer === 'CHARACTER' &&
@@ -151,10 +149,7 @@ async function checkForNewCorner(obr) {
             !item.metadata?._fromExtension
         );
 
-        console.log(`[Calibration] 当前未标记 Character 数量: ${newItems.length}, 初始数量: ${state.initialCount}`);
-
         if (newItems.length > state.initialCount) {
-            // 取最新的那个（场景中 id 最新？这里简单取最后一个，因为用户是顺序放置）
             const latest = newItems[newItems.length - 1];
             console.log(`[Calibration] ✅ 检测到新 Character: (${latest.position.x}, ${latest.position.y})`);
 
@@ -176,7 +171,6 @@ async function checkForNewCorner(obr) {
                 console.warn('[Calibration] 标记角标失败:', e);
             }
 
-            // 更新 initialCount 为当前 Character 总数，防止重复检测
             const currentChars = items.filter(item =>
                 item.type === 'IMAGE' &&
                 item.layer === 'CHARACTER'
@@ -197,6 +191,7 @@ async function checkForNewCorner(obr) {
     }
 }
 
+// 🔥 修正后的 completeCalibration
 async function completeCalibration(obr) {
     console.log('[Calibration] ✅ 四个角标已收集完毕');
     state.isActive = false;
@@ -207,25 +202,21 @@ async function completeCalibration(obr) {
         state.intervalId = null;
     }
 
-    const sorted = [...state.corners].sort((a, b) => {
-        if (Math.abs(a.y - b.y) > 10) return a.y - b.y;
-        return a.x - b.x;
-    });
+    // 按 y 升序排序（上→下）
+    const sortedByY = [...state.corners].sort((a, b) => a.y - b.y);
 
-    const topRow = sorted.filter(c => Math.abs(c.y - sorted[0].y) < 10);
-    const bottomRow = sorted.filter(c => Math.abs(c.y - sorted[sorted.length - 1].y) < 10);
+    const topRow = sortedByY.slice(0, 2).sort((a, b) => a.x - b.x);
+    const bottomRow = sortedByY.slice(2, 4).sort((a, b) => a.x - b.x);
 
-    const tl = topRow.reduce((a, b) => a.x < b.x ? a : b);
-    const tr = topRow.reduce((a, b) => a.x > b.x ? a : b);
-    const bl = bottomRow.reduce((a, b) => a.x < b.x ? a : b);
-    const br = bottomRow.reduce((a, b) => a.x > b.x ? a : b);
-
-    const corners = [tl, tr, br, bl];
+    const tl = topRow[0];
+    const tr = topRow[1];
+    const bl = bottomRow[0];
+    const br = bottomRow[1];
 
     const originX = tl.x;
     const originY = tl.y;
     const width = tr.x - tl.x;
-    const height = tl.y - bl.y;
+    const height = Math.abs(tl.y - bl.y); // 🔥 关键修复：强制取正
 
     const cols = Math.round(width / GRID_SIZE) + 1;
     const rows = Math.round(height / GRID_SIZE) + 1;

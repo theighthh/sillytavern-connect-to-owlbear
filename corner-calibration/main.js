@@ -1,12 +1,20 @@
-// 0.2.0/main.js
+// corner-calibration/main.js
+// 四角标定扩展 - 主脚本
+
+import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
 import {
     startCalibration,
     stopCalibration,
     getStatus,
     getCalibrationData,
+    hasCalibration,
     setCallbacks,
-    hasCalibration
+    resetCalibration,
 } from './calibration.js';
+
+// ======================= 暴露 OBR 到全局（控制台调试用） =======================
+window.__OBR = OBR;
+console.log('[Terrain] OBR 已暴露到 window.__OBR');
 
 // ======================= DOM 引用 =======================
 
@@ -25,6 +33,10 @@ const resultBox = $('resultBox');
 const resultDetail = $('resultDetail');
 const errorBox = $('errorBox');
 const errorDetail = $('errorDetail');
+
+// ======================= UI 状态 =======================
+
+let currentState = { status: 'idle', step: -1, cornerName: '' };
 
 // ======================= UI 更新函数 =======================
 
@@ -103,60 +115,11 @@ function updateUI(state) {
     }
 }
 
-// ======================= 初始化状态 =======================
-
-let currentState = { status: 'idle', step: -1, cornerName: '' };
-
-// ======================= 设置回调 =======================
-
-setCallbacks({
-    onStepChange: (step, cornerName) => {
-        currentState = {
-            status: 'active',
-            step: step,
-            cornerName: cornerName,
-            detail: `第 ${step + 1}/4 步`
-        };
-        updateUI(currentState);
-    },
-    onComplete: (calibration) => {
-        currentState = {
-            status: 'done',
-            step: 4,
-            detail: '标定完成',
-            cols: calibration.cols,
-            rows: calibration.rows,
-            gridSize: calibration.gridSize
-        };
-        updateUI(currentState);
-        // 重新检查状态
-        checkInitialStatus();
-    },
-    onError: (message) => {
-        currentState = {
-            status: 'error',
-            errorMessage: message,
-            detail: '错误'
-        };
-        updateUI(currentState);
-        // 5 秒后自动重置
-        setTimeout(() => {
-            if (currentState.status === 'error') {
-                resetToIdle();
-            }
-        }, 5000);
-    },
-    onCancel: () => {
-        resetToIdle();
-    }
-});
-
 // ======================= 重置函数 =======================
 
 function resetToIdle() {
     currentState = { status: 'idle', step: -1, cornerName: '', detail: '' };
     updateUI(currentState);
-    // 检查是否已有标定
     checkInitialStatus();
 }
 
@@ -164,6 +127,12 @@ function resetToIdle() {
 
 async function checkInitialStatus() {
     try {
+        // 等待 OBR 就绪
+        if (!OBR || !OBR.scene) {
+            console.warn('[Terrain] OBR 未就绪，稍后重试');
+            setTimeout(checkInitialStatus, 1000);
+            return;
+        }
         const has = await hasCalibration();
         if (has && currentState.status !== 'done') {
             const data = await getCalibrationData();
@@ -174,7 +143,7 @@ async function checkInitialStatus() {
                     detail: '已标定',
                     cols: data.cols,
                     rows: data.rows,
-                    gridSize: data.gridSize
+                    gridSize: data.gridSize,
                 };
                 updateUI(currentState);
                 console.log('[Terrain] 已检测到标定数据:', data);
@@ -185,22 +154,70 @@ async function checkInitialStatus() {
     }
 }
 
+// ======================= 设置回调 =======================
+
+setCallbacks({
+    onStepChange: (step, cornerName) => {
+        currentState = {
+            status: 'active',
+            step: step,
+            cornerName: cornerName,
+            detail: `第 ${step + 1}/4 步`,
+        };
+        updateUI(currentState);
+    },
+    onComplete: (calibration) => {
+        currentState = {
+            status: 'done',
+            step: 4,
+            detail: '标定完成',
+            cols: calibration.cols,
+            rows: calibration.rows,
+            gridSize: calibration.gridSize,
+        };
+        updateUI(currentState);
+    },
+    onError: (message) => {
+        currentState = {
+            status: 'error',
+            errorMessage: message,
+            detail: '错误',
+        };
+        updateUI(currentState);
+        setTimeout(() => {
+            if (currentState.status === 'error') {
+                resetToIdle();
+            }
+        }, 5000);
+    },
+    onCancel: () => {
+        resetToIdle();
+    },
+});
+
 // ======================= 事件绑定 =======================
 
 btnStart.addEventListener('click', async () => {
-    // 如果已有标定，先清除（重新标定）
-    if (currentState.status === 'done') {
-        // 允许重新标定，直接启动
+    // 检查 OBR 是否就绪
+    if (!OBR || !OBR.scene) {
+        currentState = {
+            status: 'error',
+            errorMessage: 'OBR 未就绪，请刷新页面后重试',
+            detail: '错误',
+        };
+        updateUI(currentState);
+        return;
     }
+
     try {
         await startCalibration();
-        // 状态会通过回调更新
+        // 状态通过回调更新
     } catch (e) {
         console.error('[Terrain] 启动标定失败:', e);
         currentState = {
             status: 'error',
             errorMessage: e.message || '启动失败',
-            detail: '错误'
+            detail: '错误',
         };
         updateUI(currentState);
     }
@@ -215,20 +232,38 @@ btnReset.addEventListener('click', () => {
     if (currentState.status === 'active') {
         stopCalibration();
     }
+    resetCalibration();
     resetToIdle();
 });
 
 // ======================= 初始化 =======================
 
-// 等待 OBR 就绪（如果全局可用）
-if (typeof OBR !== 'undefined' && OBR.onReady) {
+console.log('[Terrain] 地形分析器 UI 已加载');
+
+// 等待 OBR 就绪后检查状态
+if (OBR && OBR.onReady) {
     OBR.onReady(() => {
         console.log('[Terrain] OBR 已就绪');
         checkInitialStatus();
     });
 } else {
-    // 如果是独立测试，延迟检查
-    setTimeout(checkInitialStatus, 1000);
+    // 兜底
+    setTimeout(checkInitialStatus, 2000);
 }
 
-console.log('[Terrain] 地形分析器 UI 已加载');
+// ======================= 暴露调试函数 =======================
+
+window.__debug = {
+    start: startCalibration,
+    stop: stopCalibration,
+    reset: resetCalibration,
+    getStatus,
+    getData: getCalibrationData,
+    has: hasCalibration,
+    ui: {
+        update: updateUI,
+        reset: resetToIdle,
+    },
+};
+
+console.log('[Terrain] 调试函数已暴露到 window.__debug');

@@ -1,7 +1,5 @@
 // corner-calibration/calibration.js
-// 四角标定核心逻辑
-
-import OBR from 'https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm';
+// 四角标定核心逻辑（完全使用 window.__OBR）
 
 const CALIBRATION_KEY = 'mapCalibration';
 const CORNER_NAMES = ['左上角', '右上角', '右下角', '左下角'];
@@ -23,36 +21,39 @@ let callbacks = {
     onCancel: null,
 };
 
-// ======================= 等待 OBR 就绪 =======================
-
-async function waitForOBR() {
-    if (OBR && OBR.scene) {
-        console.log('[Calibration] OBR 已就绪');
-        return;
+function getOBR() {
+    if (typeof window.__OBR !== 'undefined') {
+        return window.__OBR;
     }
-
-    return new Promise((resolve) => {
-        if (OBR && OBR.onReady) {
-            OBR.onReady(() => {
-                console.log('[Calibration] OBR.onReady 触发');
-                resolve();
-            });
-        } else {
-            const interval = setInterval(() => {
-                if (OBR && OBR.scene) {
-                    clearInterval(interval);
-                    resolve();
-                }
-            }, 300);
-            setTimeout(() => {
-                clearInterval(interval);
-                resolve();
-            }, 10000);
-        }
-    });
+    if (typeof OBR !== 'undefined') {
+        return OBR;
+    }
+    return null;
 }
 
-// ======================= 公共 API =======================
+async function waitForOBR() {
+    const obr = getOBR();
+    if (obr && obr.scene) {
+        console.log('[Calibration] OBR 已就绪');
+        return obr;
+    }
+    return new Promise((resolve) => {
+        const check = () => {
+            const o = getOBR();
+            if (o && o.scene) {
+                console.log('[Calibration] OBR 就绪');
+                resolve(o);
+            } else {
+                setTimeout(check, 300);
+            }
+        };
+        check();
+        setTimeout(() => {
+            console.warn('[Calibration] OBR 就绪超时');
+            resolve(null);
+        }, 10000);
+    });
+}
 
 export function setCallbacks(cb) {
     callbacks = { ...callbacks, ...cb };
@@ -64,9 +65,8 @@ export async function startCalibration() {
         return;
     }
 
-    await waitForOBR();
-
-    if (!OBR || !OBR.scene) {
+    const obr = await waitForOBR();
+    if (!obr || !obr.scene) {
         const errMsg = 'OBR 未就绪，请刷新页面后重试';
         console.error('[Calibration]', errMsg);
         if (callbacks.onError) callbacks.onError(errMsg);
@@ -76,7 +76,7 @@ export async function startCalibration() {
     const existing = await getCalibrationData();
     if (existing) console.log('[Calibration] 已有标定数据，将覆盖');
 
-    const items = await OBR.scene.items.getItems();
+    const items = await obr.scene.items.getItems();
     state.initialCount = items.length;
     state.corners = [];
     state.currentStep = 0;
@@ -87,7 +87,7 @@ export async function startCalibration() {
     if (callbacks.onStepChange) callbacks.onStepChange(0, CORNER_NAMES[0]);
 
     if (state.intervalId) clearInterval(state.intervalId);
-    state.intervalId = setInterval(checkForNewCorner, 800);
+    state.intervalId = setInterval(() => checkForNewCorner(obr), 800);
 
     setTimeout(() => {
         if (state.isActive && !state.isComplete) {
@@ -119,9 +119,9 @@ export function getStatus() {
 
 export async function getCalibrationData() {
     try {
-        await waitForOBR();
-        if (!OBR || !OBR.scene) return null;
-        const metadata = await OBR.scene.getMetadata();
+        const obr = await waitForOBR();
+        if (!obr || !obr.scene) return null;
+        const metadata = await obr.scene.getMetadata();
         return metadata[CALIBRATION_KEY] || null;
     } catch (e) {
         console.warn('[Calibration] 读取标定数据失败:', e);
@@ -134,13 +134,15 @@ export async function hasCalibration() {
     return data !== null;
 }
 
-// ======================= 内部函数 =======================
-
-async function checkForNewCorner() {
+async function checkForNewCorner(obr) {
     if (!state.isActive || state.isComplete) return;
+    if (!obr) {
+        obr = getOBR();
+        if (!obr) return;
+    }
 
     try {
-        const items = await OBR.scene.items.getItems();
+        const items = await obr.scene.items.getItems();
         const newItems = items.filter(item =>
             item.type === 'IMAGE' &&
             item.layer === 'CHARACTER' &&
@@ -159,7 +161,7 @@ async function checkForNewCorner() {
             });
 
             try {
-                await OBR.scene.items.updateItems([latest.id], (draft) => {
+                await obr.scene.items.updateItems([latest.id], (draft) => {
                     draft.metadata = {
                         ...draft.metadata,
                         _isCorner: true,
@@ -174,7 +176,7 @@ async function checkForNewCorner() {
             state.currentStep++;
 
             if (state.corners.length >= 4) {
-                await completeCalibration();
+                await completeCalibration(obr);
             } else {
                 if (callbacks.onStepChange) {
                     callbacks.onStepChange(state.currentStep, CORNER_NAMES[state.currentStep]);
@@ -186,7 +188,7 @@ async function checkForNewCorner() {
     }
 }
 
-async function completeCalibration() {
+async function completeCalibration(obr) {
     console.log('[Calibration] ✅ 四个角标已收集完毕');
     state.isActive = false;
     state.isComplete = true;
@@ -237,7 +239,7 @@ async function completeCalibration() {
     console.log('[Calibration] 📐 标定数据:', calibration);
 
     try {
-        await OBR.scene.setMetadata({ [CALIBRATION_KEY]: calibration });
+        await obr.scene.setMetadata({ [CALIBRATION_KEY]: calibration });
         console.log('[Calibration] 💾 标定数据已保存');
     } catch (e) {
         console.error('[Calibration] ❌ 保存失败:', e);
@@ -247,7 +249,7 @@ async function completeCalibration() {
 
     const cornerIds = state.corners.map(c => c.id);
     try {
-        await OBR.scene.items.deleteItems(cornerIds);
+        await obr.scene.items.deleteItems(cornerIds);
         console.log('[Calibration] 🗑️ 已删除四个角标');
     } catch (e) {
         console.warn('[Calibration] ⚠️ 删除角标失败:', e);
@@ -270,8 +272,6 @@ export function resetCalibration() {
     console.log('[Calibration] 🔄 已重置');
 }
 
-// ======================= 调试工具 =======================
-
 if (typeof window !== 'undefined') {
     window.__calibration = {
         start: startCalibration,
@@ -281,5 +281,6 @@ if (typeof window !== 'undefined') {
         getData: getCalibrationData,
         has: hasCalibration,
         setCallbacks,
+        state: state,
     };
 }

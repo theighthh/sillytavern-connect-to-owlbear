@@ -1,5 +1,5 @@
 // corner-calibration/calibration.js
-// 四角标定核心逻辑（完全使用 window.__OBR）
+// 四角标定核心逻辑 - 修复 initialCount 计数 Bug
 
 const CALIBRATION_KEY = 'mapCalibration';
 const CORNER_NAMES = ['左上角', '右上角', '右下角', '左下角'];
@@ -22,21 +22,14 @@ let callbacks = {
 };
 
 function getOBR() {
-    if (typeof window.__OBR !== 'undefined') {
-        return window.__OBR;
-    }
-    if (typeof OBR !== 'undefined') {
-        return OBR;
-    }
+    if (typeof window.__OBR !== 'undefined') return window.__OBR;
+    if (typeof OBR !== 'undefined') return OBR;
     return null;
 }
 
 async function waitForOBR() {
     const obr = getOBR();
-    if (obr && obr.scene) {
-        console.log('[Calibration] OBR 已就绪');
-        return obr;
-    }
+    if (obr && obr.scene) return obr;
     return new Promise((resolve) => {
         const check = () => {
             const o = getOBR();
@@ -76,8 +69,15 @@ export async function startCalibration() {
     const existing = await getCalibrationData();
     if (existing) console.log('[Calibration] 已有标定数据，将覆盖');
 
-    const items = await obr.scene.items.getItems();
-    state.initialCount = items.length;
+    // 🔥 修正：只统计 Character 的数量
+    const allItems = await obr.scene.items.getItems();
+    const initialChars = allItems.filter(item =>
+        item.type === 'IMAGE' &&
+        item.layer === 'CHARACTER'
+    );
+    state.initialCount = initialChars.length;
+    console.log(`[Calibration] 初始 Character 数量: ${state.initialCount}`);
+
     state.corners = [];
     state.currentStep = 0;
     state.isActive = true;
@@ -143,6 +143,7 @@ async function checkForNewCorner(obr) {
 
     try {
         const items = await obr.scene.items.getItems();
+        // 筛选未标记的 Character
         const newItems = items.filter(item =>
             item.type === 'IMAGE' &&
             item.layer === 'CHARACTER' &&
@@ -150,9 +151,12 @@ async function checkForNewCorner(obr) {
             !item.metadata?._fromExtension
         );
 
+        console.log(`[Calibration] 当前未标记 Character 数量: ${newItems.length}, 初始数量: ${state.initialCount}`);
+
         if (newItems.length > state.initialCount) {
+            // 取最新的那个（场景中 id 最新？这里简单取最后一个，因为用户是顺序放置）
             const latest = newItems[newItems.length - 1];
-            console.log(`[Calibration] 检测到新 Character: (${latest.position.x}, ${latest.position.y})`);
+            console.log(`[Calibration] ✅ 检测到新 Character: (${latest.position.x}, ${latest.position.y})`);
 
             state.corners.push({
                 id: latest.id,
@@ -172,7 +176,12 @@ async function checkForNewCorner(obr) {
                 console.warn('[Calibration] 标记角标失败:', e);
             }
 
-            state.initialCount = items.length;
+            // 更新 initialCount 为当前 Character 总数，防止重复检测
+            const currentChars = items.filter(item =>
+                item.type === 'IMAGE' &&
+                item.layer === 'CHARACTER'
+            );
+            state.initialCount = currentChars.length;
             state.currentStep++;
 
             if (state.corners.length >= 4) {
@@ -269,6 +278,7 @@ export function resetCalibration() {
     state.isComplete = false;
     state.corners = [];
     state.currentStep = 0;
+    state.initialCount = 0;
     console.log('[Calibration] 🔄 已重置');
 }
 

@@ -4,14 +4,14 @@ const SERVER_URL = "https://mengfanrui.jijihenda.cloud";
 let lastData = null;
 let isRendering = false;
 
-// ========== 网格对齐配置（0.2.0） ==========
-const GRID_ORIGIN_X = 75;
-const GRID_ORIGIN_Y = -4425;
-const GRID_SIZE = 150;
+// ========== 默认网格配置（当标定数据不存在时使用） ==========
+const DEFAULT_ORIGIN_X = 75;
+const DEFAULT_ORIGIN_Y = -4425;   // 你当前地图的值
+const DEFAULT_GRID_SIZE = 150;
 
-// ========== 角色名 → 图片 URL 映射表（0.2.0） ==========
+// ========== 角色名 → 图片 URL 映射表 ==========
 const TOKEN_IMAGES = {
-    // ===== 职业类（玩家角色） =====
+    // ===== 职业类 =====
     "Barbarian": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Barbarian.png",
     "Bard": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Bard.png",
     "Cleric": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Cleric.png",
@@ -27,7 +27,7 @@ const TOKEN_IMAGES = {
     "Artificer": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Artificer.png",
     "Blood Hunter": "https://images.owlbear.rodeo/shared/items/owlbear-characters/BloodHunter.png",
 
-    // ===== 怪物类型（敌人/NPC） =====
+    // ===== 怪物类型 =====
     "Aberration": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Aberration.png",
     "Beast": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Beast.png",
     "Celestial": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Celestial.png",
@@ -46,7 +46,7 @@ const TOKEN_IMAGES = {
     "Titan": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Titan.png",
     "Undead": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Undead.png",
 
-    // ===== 中文别名（方便 AI 直接使用中文名） =====
+    // ===== 中文别名 =====
     "野蛮人": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Barbarian.png",
     "吟游诗人": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Bard.png",
     "牧师": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Cleric.png",
@@ -67,16 +67,31 @@ const TOKEN_IMAGES = {
     "不死生物": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Undead.png",
     "元素生物": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Elemental.png",
 
-    // ===== 默认兜底图片 =====
     "default": "https://images.owlbear.rodeo/shared/items/owlbear-characters/Humanoid.png"
 };
+
+// ============== 获取标定数据 ==============
+async function getCalibration() {
+    try {
+        const metadata = await OBR.scene.getMetadata();
+        const cal = metadata?.mapCalibration;
+        if (cal && cal.originX !== undefined && cal.originY !== undefined && cal.gridSize !== undefined) {
+            return cal;
+        }
+        console.warn('[MapRenderer] ⚠️ 未找到标定数据，使用默认值');
+        return null;
+    } catch (e) {
+        console.warn('[MapRenderer] 读取标定数据失败:', e);
+        return null;
+    }
+}
 
 // ============== 直接返回 OBR.scene ==============
 async function getScene() {
     return OBR.scene;
 }
 
-// ============== 等待场景就绪（双重校验） ==============
+// ============== 等待场景就绪 ==============
 async function waitForScene(maxAttempts = 30, interval = 1000) {
     for (let i = 0; i < maxAttempts; i++) {
         if (!OBR.scene.isReady) {
@@ -110,7 +125,7 @@ async function fetchMap() {
     }
 }
 
-// ============== renderMap（支持图片 + 网格中心对齐） ==============
+// ============== renderMap ==============
 async function renderMap(mapData) {
     if (isRendering) return;
     isRendering = true;
@@ -121,6 +136,21 @@ async function renderMap(mapData) {
             return;
         }
         console.log('[MapRenderer] 场景引擎已就绪');
+
+        // 🔥 动态读取标定数据
+        const calibration = await getCalibration();
+        let originX, originY, gridSize;
+        if (calibration) {
+            originX = calibration.originX;
+            originY = calibration.originY;
+            gridSize = calibration.gridSize;
+            console.log('[MapRenderer] ✅ 使用标定数据:', { originX, originY, gridSize });
+        } else {
+            originX = DEFAULT_ORIGIN_X;
+            originY = DEFAULT_ORIGIN_Y;
+            gridSize = DEFAULT_GRID_SIZE;
+            console.warn('[MapRenderer] ⚠️ 使用默认标定数据，请运行四角标定！');
+        }
 
         // 清除旧标记
         const items = await OBR.scene.items.getItems();
@@ -134,11 +164,10 @@ async function renderMap(mapData) {
                 let tokenItem;
                 const imageUrl = TOKEN_IMAGES[token.name] || TOKEN_IMAGES["default"];
 
-                // 网格索引 → 像素坐标（对齐网格中心）
-                const posX = GRID_ORIGIN_X + Math.round(parseFloat(token.x)) * GRID_SIZE;
-                const posY = GRID_ORIGIN_Y + Math.round(parseFloat(token.y)) * GRID_SIZE;
+                // 网格索引 → 像素坐标
+                const posX = originX + Math.round(parseFloat(token.x)) * gridSize;
+                const posY = originY + Math.round(parseFloat(token.y)) * gridSize;
 
-                // 如果有匹配的图片，使用 IMAGE 类型
                 if (imageUrl) {
                     tokenItem = {
                         type: "IMAGE",
@@ -164,10 +193,7 @@ async function renderMap(mapData) {
                             width: 300,
                             height: 300
                         },
-                        grid: {
-                            dpi: 300,
-                            offset: { x: 150, y: 150 }
-                        },
+                        grid: { dpi: 300, offset: { x: 150, y: 150 } },
                         text: {
                             type: "PLAIN",
                             style: {
@@ -186,19 +212,14 @@ async function renderMap(mapData) {
                             },
                             width: "AUTO",
                             height: "AUTO",
-                            richText: [
-                                {
-                                    type: "paragraph",
-                                    children: [{ text: "" }]
-                                }
-                            ],
+                            richText: [{ type: "paragraph", children: [{ text: "" }] }],
                             plainText: ""
                         },
                         textItemType: "LABEL",
                         layer: "CHARACTER"
                     };
                 } else {
-                    // 回退到彩色圆形（兼容旧数据）
+                    // 回退到彩色圆形
                     let fillColor = "#4A90D9";
                     if (token.type === "player") fillColor = "#2ECC71";
                     else if (token.type === "enemy") fillColor = "#E74C3C";

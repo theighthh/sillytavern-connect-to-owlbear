@@ -6,7 +6,7 @@ let isRendering = false;
 
 // ========== 网格对齐配置（0.2.0） ==========
 const GRID_ORIGIN_X = 75;
-const GRID_ORIGIN_Y = 225;
+const GRID_ORIGIN_Y = -4425;
 const GRID_SIZE = 150;
 
 // ========== 角色名 → 图片 URL 映射表（0.2.0） ==========

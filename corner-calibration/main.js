@@ -16,6 +16,42 @@ import {
 window.__OBR = OBR;
 console.log('[Terrain] OBR 已暴露到 window.__OBR');
 
+// ======================= WebSocket 连接 =======================
+// 🔥 使用你的 Sakura FRP 公网地址（或本地 ws://localhost:8080）
+const WS_URL = 'wss://mengfanrui.jijihenda.cloud';  // 或 ws://localhost:8080
+
+function connectWebSocket() {
+    try {
+        window.ws = new WebSocket(WS_URL);
+        
+        window.ws.onopen = () => {
+            console.log('[Calibration] ✅ WebSocket 已连接到 server.js');
+        };
+        
+        window.ws.onerror = (err) => {
+            console.warn('[Calibration] ⚠️ WebSocket 连接失败:', err);
+        };
+        
+        window.ws.onclose = () => {
+            console.log('[Calibration] WebSocket 连接已断开');
+            // 5 秒后自动重连
+            setTimeout(() => {
+                console.log('[Calibration] 尝试重新连接 WebSocket...');
+                connectWebSocket();
+            }, 5000);
+        };
+        
+        window.ws.onmessage = (event) => {
+            console.log('[Calibration] 收到 server.js 消息:', event.data);
+        };
+    } catch (e) {
+        console.warn('[Calibration] WebSocket 初始化失败:', e);
+    }
+}
+
+// 启动 WebSocket 连接
+connectWebSocket();
+
 // ======================= DOM 引用 =======================
 
 const $ = (id) => document.getElementById(id);

@@ -1,5 +1,5 @@
 // corner-calibration/calibration.js
-// 四角标定核心逻辑 - 修复 height 负数问题
+// 四角标定核心逻辑 - 修复 height 负数问题 + 发送标定数据到 server.js
 
 const CALIBRATION_KEY = 'mapCalibration';
 const CORNER_NAMES = ['左上角', '右上角', '右下角', '左下角'];
@@ -191,7 +191,26 @@ async function checkForNewCorner(obr) {
     }
 }
 
-// 🔥 修正后的 completeCalibration
+// ===== 发送标定数据到 server.js（通过 WebSocket） =====
+async function sendCalibrationToServer(calibrationData) {
+    try {
+        // 尝试使用全局 WebSocket 连接
+        const ws = window.ws;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'calibration_update',
+                payload: calibrationData
+            }));
+            console.log('[Calibration] 📤 标定数据已通过 WebSocket 发送到 server.js');
+        } else {
+            console.warn('[Calibration] ⚠️ WebSocket 未连接，标定数据未发送');
+        }
+    } catch (e) {
+        console.warn('[Calibration] 发送标定数据失败:', e);
+    }
+}
+
+// ===== 完整的标定完成函数 =====
 async function completeCalibration(obr) {
     console.log('[Calibration] ✅ 四个角标已收集完毕');
     state.isActive = false;
@@ -216,7 +235,7 @@ async function completeCalibration(obr) {
     const originX = tl.x;
     const originY = tl.y;
     const width = tr.x - tl.x;
-    const height = Math.abs(tl.y - bl.y); // 🔥 关键修复：强制取正
+    const height = Math.abs(tl.y - bl.y);
 
     const cols = Math.round(width / GRID_SIZE) + 1;
     const rows = Math.round(height / GRID_SIZE) + 1;
@@ -240,12 +259,15 @@ async function completeCalibration(obr) {
 
     try {
         await obr.scene.setMetadata({ [CALIBRATION_KEY]: calibration });
-        console.log('[Calibration] 💾 标定数据已保存');
+        console.log('[Calibration] 💾 标定数据已保存到场景 metadata');
     } catch (e) {
         console.error('[Calibration] ❌ 保存失败:', e);
         if (callbacks.onError) callbacks.onError('保存标定数据失败: ' + e.message);
         return;
     }
+
+    // 🔥 通过 WebSocket 发送到 server.js
+    await sendCalibrationToServer(calibration);
 
     const cornerIds = state.corners.map(c => c.id);
     try {
